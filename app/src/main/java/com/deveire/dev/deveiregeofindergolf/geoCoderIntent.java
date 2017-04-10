@@ -6,6 +6,7 @@ import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.ResultReceiver;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
@@ -37,6 +38,7 @@ public class geoCoderIntent extends IntentService
     protected void onHandleIntent(@Nullable Intent intent)
     {
         Geocoder coder = new Geocoder(this, Locale.getDefault());
+        mReceiver = intent.getParcelableExtra(Constants.RECEIVER);
 
         String errorMessage = "";
 

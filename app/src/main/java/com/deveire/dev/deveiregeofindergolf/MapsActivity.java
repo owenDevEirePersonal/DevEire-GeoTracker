@@ -1,5 +1,6 @@
 package com.deveire.dev.deveiregeofindergolf;
 
+import android.content.Intent;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 
@@ -7,6 +8,7 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
@@ -14,10 +16,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 {
 
     private GoogleMap mMap;
+
     private float courseLat;
     private float courseLong;
     private float userLat;
     private float userLong;
+    private float courseRadius; //in meters
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -30,14 +34,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mapFragment.getMapAsync(this);
 
 
-
-        courseLat = 52.671450f;
-        courseLong = -8.546907f;
-
-        userLat = 0.0001f;
-        userLong = 0.0001f;
-
-        //TODO: set lat and long from last activity
+        Intent inIntent = getIntent();
+        courseLat = 52.671359f;
+        courseLong = -8.546629f;
+        courseRadius = 200;
+        userLat = inIntent.getFloatExtra("userLat", 0);
+        userLong = inIntent.getFloatExtra("userLong", 0);
 
     }
 
@@ -58,9 +60,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         // Add a marker in Sydney and move the camera
         LatLng golfCourse = new LatLng(courseLat, courseLong);
-        //mMap.addMarker(new MarkerOptions().position(golfCourse).title("Our Golf Course"));
+        //mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
         mMap.moveCamera(CameraUpdateFactory.newLatLng(golfCourse));
-
-        LatLng userPosition = new LatLng(userLat, userLong);
+        mMap.addMarker(new MarkerOptions().position(new LatLng(userLat,userLong)).title("User Position"));
+        mMap.addCircle(new CircleOptions().center(golfCourse).radius(courseRadius));
     }
 }

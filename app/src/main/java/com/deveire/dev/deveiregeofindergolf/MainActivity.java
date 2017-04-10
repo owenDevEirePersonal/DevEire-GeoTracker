@@ -95,7 +95,15 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
             @Override
             public void onClick(View v)
             {
-                startActivity(new Intent(getApplicationContext(), MapsActivity.class));
+                Intent mapIntent = new Intent(getApplicationContext(), MapsActivity.class);
+                if(whereTheyAt != null)
+                {
+                    mapIntent.putExtra("userLat", (float) whereTheyAt.getLatitude());
+                    Log.i("Map Update", "sending intent to mapActivity with user Latitude of :" + mapIntent.getFloatExtra("userLat", 0) + " from a location of lat: " + whereTheyAt.getLatitude());
+                    mapIntent.putExtra("userLong",(float) whereTheyAt.getLongitude());
+                    Log.i("Map Update", "sending intent to mapActivity with user Longitude of :" + mapIntent.getFloatExtra("userLong", 0) + " from a location of long: " + whereTheyAt.getLatitude());
+                }
+                startActivity(mapIntent);
             }
         });
 
