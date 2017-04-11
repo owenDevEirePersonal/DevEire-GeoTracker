@@ -3,7 +3,7 @@ package com.deveire.dev.deveiregeofindergolf;
 import android.net.NetworkInfo;
 
 /**
- * Created by owenryan on 05/04/2017.
+ * Created by owenryan on 11/04/2017.
  */
 
 public interface DownloadCallback<T> {

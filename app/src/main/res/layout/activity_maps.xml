@@ -17,7 +17,9 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.028"
         android:id="@+id/mapText"
-        android:layout_marginTop="2dp"/>
+        android:layout_marginTop="2dp"
+        app:layout_constraintHorizontal_bias="0.051"
+        android:layout_marginLeft="8dp"/>
 
     <fragment xmlns:android="http://schemas.android.com/apk/res/android"
               xmlns:map="http://schemas.android.com/apk/res-auto"
@@ -34,6 +36,22 @@
               android:layout_marginLeft="8dp"
               map:layout_constraintLeft_toLeftOf="parent"/>
 
+    <Button
+        android:id="@+id/swingButton"
+        android:layout_width="wrap_content"
+        android:layout_height="0dp"
+        android:layout_marginBottom="0dp"
+        android:layout_marginLeft="8dp"
+        android:layout_marginRight="2dp"
+        android:layout_marginTop="8dp"
+        android:text="Mark Swing"
+        app:layout_constraintBottom_toTopOf="@+id/map"
+        app:layout_constraintHorizontal_bias="0.963"
+        app:layout_constraintLeft_toRightOf="@+id/mapText"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="1.0"
+        />
 
 
 </android.support.constraint.ConstraintLayout>
