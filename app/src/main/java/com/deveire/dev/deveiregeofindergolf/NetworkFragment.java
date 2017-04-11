@@ -174,6 +174,7 @@ public class NetworkFragment extends Fragment
                                 && networkInfo.getType() != ConnectivityManager.TYPE_MOBILE))
             {
                 // If no connectivity, cancel task and update Callback with null data.
+                Log.e("Network Update", "Network Unavaiable, aborting");
                 mCallback.updateFromDownload(null);
                 cancel(true);
             }

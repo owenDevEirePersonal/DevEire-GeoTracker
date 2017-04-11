@@ -363,32 +363,42 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
 
     @Override
     public void updateFromDownload(String result) {
-        intervalTextView.setText("Interval: " + result);
+        //intervalTextView.setText("Interval: " + result);
         try
         {
-            JSONObject jsonResultFromServer = new JSONObject(result);
-            if(locationScanInterval != jsonResultFromServer.getInt("intervalRequest"))
+            if(result != null)
             {
-                if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+                JSONObject jsonResultFromServer = new JSONObject(result);
+                //if the requested interval differs from the current interval, change the interval and send a locationrequest to change the settings.
+                if (locationScanInterval != jsonResultFromServer.getInt("intervalRequest"))
                 {
-                    locationScanInterval = jsonResultFromServer.getInt("intervalRequest");
-                    request.setInterval(locationScanInterval * 1000);
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+                    {
+                        locationScanInterval = jsonResultFromServer.getInt("intervalRequest");
+                        request.setInterval(locationScanInterval * 1000);
 
-                    LocationSettingsRequest.Builder requestBuilder = new LocationSettingsRequest.Builder().addLocationRequest(request);
-                    LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
-                    LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, request, this);
-                    Log.i("Location Update", "Interval Changed, locationRequest changed.");
+                        LocationSettingsRequest.Builder requestBuilder = new LocationSettingsRequest.Builder().addLocationRequest(request);
+                        LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
+                        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, request, this);
+                        Log.i("Location Update", "Interval Changed, locationRequest changed.");
+                    }
+                    updateText(locationScanInterval);
                 }
-                updateText(locationScanInterval);
+            }
+            else
+            {
+                intervalTextView.setText("Error: Network unavaiable");
             }
 
         }
         catch(JSONException e)
-        {}
+        {
+
+        }
 
 
 
-        Log.e("download Output", result);
+        Log.e("Download Output", "" + result);
         // Update your UI here based on result of download.
     }
 

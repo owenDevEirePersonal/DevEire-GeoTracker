@@ -16,7 +16,7 @@
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.028"
-        android:id="@+id/textView3"
+        android:id="@+id/mapText"
         android:layout_marginTop="2dp"/>
 
     <fragment xmlns:android="http://schemas.android.com/apk/res/android"
@@ -28,7 +28,7 @@
               android:layout_height="495dp"
               tools:context="com.deveire.dev.deveiregeofindergolf.MapsActivity"
               android:layout_marginTop="8dp"
-              map:layout_constraintTop_toBottomOf="@+id/textView3"
+              map:layout_constraintTop_toBottomOf="@+id/mapText"
               android:layout_marginRight="8dp"
               map:layout_constraintRight_toRightOf="parent"
               android:layout_marginLeft="8dp"
