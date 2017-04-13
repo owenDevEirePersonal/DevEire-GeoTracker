@@ -42,6 +42,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     SharedPreferences aSaveState;
     private ArrayList<Location> swings;
 
+    private ArrayList<Location> allHoles;
+    private int nearestHole;
+
+    //TODO: look into using geoFences to detect slow players.
+
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
@@ -59,18 +64,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         Context thisContext = getApplicationContext();
         aSaveState = thisContext.getSharedPreferences("SavedSwings", Context.MODE_PRIVATE);
         int currentIndexOfSaveState = 1;
-        while(currentIndexOfSaveState > 0)
+        while (currentIndexOfSaveState > 0)
         {
             String currentSave = aSaveState.getString("Swing" + currentIndexOfSaveState, null);
-            if(currentSave != null)
+            if (currentSave != null)
             {
                 Location currentSwingLocation = new Location("Swing" + currentIndexOfSaveState);
                 currentSwingLocation.setLatitude(aSaveState.getFloat("Swing" + currentIndexOfSaveState + "Lat", 0));
                 currentSwingLocation.setLongitude(aSaveState.getFloat("Swing" + currentIndexOfSaveState + "Long", 0));
                 swings.add(currentSwingLocation);
                 currentIndexOfSaveState++;
-            }
-            else
+            } else
             {
                 currentIndexOfSaveState = 0;
                 //breaks the loop
@@ -89,7 +93,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 Location aNewSwing = new Location("Swing" + (swings.size() + 1));
                 aNewSwing.setLatitude(userLat);
                 aNewSwing.setLongitude(userLong);
+                addMarkerToMap(aNewSwing, "Swing" + (swings.size() + 1));
                 swings.add(aNewSwing);
+
             }
         });
 
@@ -100,13 +106,35 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         courseLocation.setLatitude(courseLat);
         courseLocation.setLongitude(courseLong);
         courseRadius = 200;//in meters
-        userLat = /*52.671355f;*/inIntent.getFloatExtra("userLat", 0);
-        userLong = /*-8.546625f;*/inIntent.getFloatExtra("userLong", 0);
-        userLocation = new Location ("You are here");
+        userLat = 52.671355f; /*inIntent.getFloatExtra("userLat", 0);*/ //input of lat and long disabled
+        userLong = -8.546625f; /*inIntent.getFloatExtra("userLong", 0);*/
+        userLocation = new Location("You are here");
         userLocation.setLatitude(userLat);
         userLocation.setLongitude(userLong);
 
-        if(userLocation.distanceTo(courseLocation) <= courseRadius)//in meters
+        allHoles = new ArrayList<Location>();
+        Location aLoc;
+        aLoc = new Location("1"); //-0.000100 lat from centre
+        aLoc.setLatitude(52.671259);
+        aLoc.setLongitude(-8.546629);
+        allHoles.add(aLoc);
+        aLoc = new Location("2");//+0.000100 lat from centre
+        aLoc.setLatitude(52.671459);
+        aLoc.setLongitude(-8.546629);
+        allHoles.add(aLoc);
+        aLoc = new Location("3");//-0.000100 lng from centre
+        aLoc.setLatitude(52.671359);
+        aLoc.setLongitude(-8.5465329);
+        allHoles.add(aLoc);
+        aLoc = new Location("4");//+0.000100 lng from centre
+        aLoc.setLatitude(52.671359);
+        aLoc.setLongitude(-8.546729);
+        allHoles.add(aLoc);
+
+
+        //[Check if within a golf course]
+        nearestGolfCourse = "";
+        /*if(userLocation.distanceTo(courseLocation) <= courseRadius)//in meters
         {
             nearestGolfCourse = "Jim Bob Memorial Golf Course";
             mapText.setText("You are in the " + nearestGolfCourse);
@@ -115,8 +143,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         {
             nearestGolfCourse = "";
             mapText.setText("No golf courses in your immediate area.");
-        }
+        }*/
+        //[/Check if within a golf course]
 
+        nearestHole = findNearestHole(userLocation, allHoles);
+        Log.i("Hole Update", "Current Nearest Hole is: " + (nearestHole + 1));
     }
 
     @Override
@@ -131,9 +162,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     {
         SharedPreferences.Editor edit = aSaveState.edit();
         int indexOfSwings = 1;
-        for (Location aswing:swings)
+        for (Location aswing : swings)
         {
-            Log.i("yep", aswing.toString());
+            Log.i("Saving Swings", aswing.toString());
             edit.putString("Swing" + indexOfSwings, aswing.toString());
             edit.putFloat("Swing" + indexOfSwings + "Lat", (float) aswing.getLatitude());
             edit.putFloat("Swing" + indexOfSwings + "Long", (float) aswing.getLongitude());
@@ -161,23 +192,61 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         LatLng golfCourse = new LatLng(courseLat, courseLong);
         mMap.addMarker(new MarkerOptions().position(golfCourse).title("Jim Bob Memorial Golf Course"));
 
-        mMap.addMarker(new MarkerOptions().position(new LatLng(userLat,userLong)).title("User Position"));
+        mMap.addMarker(new MarkerOptions().position(new LatLng(userLat, userLong)).title("User Position"));
         mMap.addCircle(new CircleOptions().center(golfCourse).radius(courseRadius));
 
         switch (nearestGolfCourse)
         {
-            case "Jim Bob Memorial Golf Course": mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(golfCourse, 15)); break;
-            case "": mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(userLat, userLong), 10)); break;
-            default: break;
+            case "Jim Bob Memorial Golf Course":
+                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(golfCourse, 15));
+                break;
+            case "":
+                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(userLat, userLong), 10));
+                break;
+            default:
+                break;
         }
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(golfCourse, 15));
 
         int indexOfSwings = 1;
-        for (Location aswing: swings)
+        for (Location aswing : swings)
         {
             mMap.addMarker(new MarkerOptions().position(new LatLng(aswing.getLatitude(), aswing.getLongitude())).title("Swing" + indexOfSwings));
             indexOfSwings++;
         }
 
+        int indexOfHoles = 1;
+        for (Location aHole : allHoles)
+        {
+            mMap.addMarker(new MarkerOptions().position(new LatLng(aHole.getLatitude(), aHole.getLongitude())).title("Hole" + indexOfHoles));
+            indexOfHoles++;
+        }
+
     }
+
+    private void addMarkerToMap(Location newMarkerLocation, String newMarkerTitle)
+    {
+        mMap.addMarker(new MarkerOptions().position(new LatLng(newMarkerLocation.getLatitude(), newMarkerLocation.getLongitude())).title(newMarkerTitle));
+    }
+
+    private int findNearestHole(Location userLocation, ArrayList<Location> allLocations)
+    {
+        int holeNumber = 0;
+        Location nearestLocation = allLocations.get(0);
+        for (int i = 0; i < allLocations.size(); i++)
+        {
+            if(userLocation.distanceTo(allLocations.get(i)) <= userLocation.distanceTo(nearestLocation))
+            {
+                nearestLocation = allLocations.get(i);
+                holeNumber = i;
+            }
+        }
+        return holeNumber;
+    }
+
+
 }
+
+/*
+
+
+ */
