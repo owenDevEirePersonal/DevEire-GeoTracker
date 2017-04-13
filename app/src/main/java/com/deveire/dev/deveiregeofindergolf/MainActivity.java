@@ -165,7 +165,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
 
         locationScanInterval = 30;//in seconds
 
-        request = new LocationRequest();
+//*********************************************PERIODIC NETWORK CONNECTION DISABLED*********************************************************************
+        /*request = new LocationRequest();
         request.setInterval(locationScanInterval * 1000);//in mileseconds
         request.setFastestInterval(5000);//caps how fast the locations are recieved, as other apps could be triggering updates faster than our app.
         request.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY); //accurate to 100 meters.
@@ -209,7 +210,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                         break;
                 }
             }
-        });
+        });*/
 
         geoCoderServiceResultReciever = new AddressResultReceiver(new Handler());
 
@@ -236,7 +237,10 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
     @Override
     public void onConnected(@Nullable Bundle bundle)
     {
-        if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+
+
+//*********************************************PERIODIC NETWORK CONNECTION DISABLED*********************************************************************
+        /*if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
         {
             whereTheyAt = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
             LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, request, this);
@@ -260,7 +264,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
             }
 
 
-        }
+        }*/
 
 
 
