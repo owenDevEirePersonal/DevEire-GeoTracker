@@ -1,6 +1,5 @@
 package com.deveire.dev.deveiregeofindergolf;
 
-import android.*;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
@@ -70,11 +69,31 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     SharedPreferences aSaveState;
     private ArrayList<Location> swings;
 
-    private ArrayList<Location> allHoles;
-    private int nearestHole;
+    private ArrayList<GolfHole> allHoles;
+    private GolfHole nearestHole; //the hole the user is currently closest to
+    private GolfHole currentHole; //the hole the user is believed to be currently playing
+    private int intervalsSpentAtCurrentHole;
+    private int intervalsSpentAtNearestHole;
 
     //TODO: look into using geoFences to detect slow players.
 
+    private Location usersLastLocation;
+    private Location users2ndLastLocation;
+    private Location users3rdLastLocation;
+
+    private int UsersCurrentAction;
+    private int UsersPreviousAction;
+
+    private final int user_is_swinging = 1;
+    private final int user_is_waiting = 2;
+    private final int user_is_walking = 3;
+    private final int user_is_walking_or_waiting = 4;
+    private final int user_is_waiting_or_swinging = 5;
+
+
+
+
+    //[Network and periodic location update, Variables]
     private GoogleApiClient mGoogleApiClient;
     private Location whereTheyAt;
     private MapsActivity.AddressResultReceiver geoCoderServiceResultReciever;
@@ -87,6 +106,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private boolean pingingServer;
     private String serverURL;
     private NetworkFragment aNetworkFragment;
+    //[/Network and periodic location update, Variables]
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -153,25 +173,27 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         userLocation.setLatitude(userLat);
         userLocation.setLongitude(userLong);
 
-        allHoles = new ArrayList<Location>();
+        //[Create golf holes(placeholder)]
+        allHoles = new ArrayList<GolfHole>();
         Location aLoc;
+
         aLoc = new Location("1"); //-0.000100 lat from centre
         aLoc.setLatitude(52.671259);
         aLoc.setLongitude(-8.546629);
-        allHoles.add(aLoc);
+        allHoles.add(new GolfHole(1, "A Golf Course", aLoc));
         aLoc = new Location("2");//+0.000100 lat from centre
         aLoc.setLatitude(52.671459);
         aLoc.setLongitude(-8.546629);
-        allHoles.add(aLoc);
+        allHoles.add(new GolfHole(2, "A Golf Course", aLoc));
         aLoc = new Location("3");//-0.000100 lng from centre
         aLoc.setLatitude(52.671359);
         aLoc.setLongitude(-8.5465329);
-        allHoles.add(aLoc);
+        allHoles.add(new GolfHole(3, "A Golf Course", aLoc));
         aLoc = new Location("4");//+0.000100 lng from centre
         aLoc.setLatitude(52.671359);
         aLoc.setLongitude(-8.546729);
-        allHoles.add(aLoc);
-
+        allHoles.add(new GolfHole(4, "A Golf Course", aLoc));
+        //[/Create golf holes(placeholder)]
 
         //[Check if within a golf course]
         nearestGolfCourse = "";
@@ -188,7 +210,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         //[/Check if within a golf course]
 
         nearestHole = findNearestHole(userLocation, allHoles);
-        Log.i("Hole Update", "Current Nearest Hole is: " + (nearestHole + 1));
+        currentHole = nearestHole;
+        Log.i("Hole Update", "Current Nearest Hole is: " + (nearestHole.getNameOfGolfCourse() + " Hole " + nearestHole.getHoleNumber()));
+
+        UsersCurrentAction = 0;
+        UsersPreviousAction = 0;
+
+
 
         setupServerUplinkAndLocationUpdater(savedInstanceState);
     }
@@ -259,11 +287,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             indexOfSwings++;
         }
 
-        int indexOfHoles = 1;
-        for (Location aHole : allHoles)
+
+        for (GolfHole aHole : allHoles)
         {
-            mMap.addMarker(new MarkerOptions().position(new LatLng(aHole.getLatitude(), aHole.getLongitude())).title("Hole" + indexOfHoles));
-            indexOfHoles++;
+            mMap.addMarker(new MarkerOptions().position(new LatLng(aHole.getHoleLocation().getLatitude(), aHole.getHoleLocation().getLongitude())).title("Hole" + aHole.getHoleNumber()));
         }
 
     }
@@ -273,27 +300,128 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.addMarker(new MarkerOptions().position(new LatLng(newMarkerLocation.getLatitude(), newMarkerLocation.getLongitude())).title(newMarkerTitle));
     }
 
-    private int findNearestHole(Location userLocation, ArrayList<Location> allLocations)
+    private GolfHole findNearestHole(Location userLocation, ArrayList<GolfHole> allLocations)
     {
-        int holeNumber = 0;
-        Location nearestLocation = allLocations.get(0);
+        GolfHole nearestHole = null;
+        Location nearestLocation = allLocations.get(0).getHoleLocation();
         for (int i = 0; i < allLocations.size(); i++)
         {
-            if(userLocation.distanceTo(allLocations.get(i)) <= userLocation.distanceTo(nearestLocation))
+            if(userLocation.distanceTo(allLocations.get(i).getHoleLocation()) <= userLocation.distanceTo(nearestLocation))
             {
-                nearestLocation = allLocations.get(i);
-                holeNumber = i;
+                nearestLocation = allLocations.get(i).getHoleLocation();
+                nearestHole = allLocations.get(i);
             }
         }
-        return holeNumber;
+        return nearestHole;
     }
 
     private void updateMap()
     {
         //TODO: add update map based off of locationUpdate logic
+
+        updateUsersAction();
+        updateWhatHoleUserIsAt();
+
+
+    }
+
+
+    private void updateUsersAction()
+    {
+        users3rdLastLocation = users2ndLastLocation;
+        users2ndLastLocation = usersLastLocation;
+        usersLastLocation = userLocation;
+        userLocation = whereTheyAt;
+        UsersPreviousAction = UsersCurrentAction;
+
+        switch(UsersPreviousAction)
+        {
+            case user_is_waiting_or_swinging:
+                if ((users2ndLastLocation.distanceTo(users3rdLastLocation) < 10) && (usersLastLocation.distanceTo(users2ndLastLocation) >= 10) && (userLocation.distanceTo(usersLastLocation) >= 10))
+                {
+                    UsersCurrentAction = user_is_walking;
+                }
+                break;
+
+            case user_is_walking:
+                if ((users2ndLastLocation.distanceTo(users3rdLastLocation) >= 10) && (usersLastLocation.distanceTo(users2ndLastLocation) < 10) && (userLocation.distanceTo(usersLastLocation) < 10))
+                {
+                    UsersCurrentAction = user_is_waiting_or_swinging;
+                    findIfUserWaitingOrSwinging();
+                }
+                break;
+
+            case user_is_waiting:
+                if ((users2ndLastLocation.distanceTo(users3rdLastLocation) < 10) && (usersLastLocation.distanceTo(users2ndLastLocation) >= 10) && (userLocation.distanceTo(usersLastLocation) >= 10))
+                {
+                    UsersCurrentAction = user_is_walking;
+                }
+                break;
+
+            case user_is_swinging:
+                if ((users2ndLastLocation.distanceTo(users3rdLastLocation) < 10) && (usersLastLocation.distanceTo(users2ndLastLocation) >= 10) && (userLocation.distanceTo(usersLastLocation) >= 10))
+                {
+                    UsersCurrentAction = user_is_walking;
+                }
+                break;
+
+            default:
+                Log.e("Update User Action", "Warning: user's previous action does not match any known action");
+                break;
+        }
+
+    }
+
+    private void findIfUserWaitingOrSwinging()
+    {
+        //TODO: Add logic to caculate whether the user is swinging or waiting by checking if they have walked the less than there average distance between the current and last stroke.
+        
+    }
+
+
+    private void updateWhatHoleUserIsAt()
+    {
+        GolfHole newNearestHole = findNearestHole(userLocation, allHoles);
+        if(nearestHole == newNearestHole)
+        {
+
+            intervalsSpentAtNearestHole++;
+            if(intervalsSpentAtCurrentHole > 2)
+            {
+                storeLastHoleData(currentHole, intervalsSpentAtCurrentHole);
+                currentHole = nearestHole;
+                currentHole.setTimeSpentAtHole(3 * locationScanInterval * 1000);//set to 3 intervals as at this point the user would have already spend 3 intervals at this hole before the app realized that they had moved to this hole.
+                /*!!!Warning!!!
+                    TODO: FIX INTERVAL TIME INACCURACY FOR INTIALISING THE CURRENT HOLES TIME.
+                    when the user is at a new currentHole, it sets the user's time at that hole to 3 intervals worth
+                    BUT this only using the current interval length, if the interval lenght changes in those 3 intervals
+                    then this intial time will be inaccurate.
+                 */
+            }
+            else
+            {
+                intervalsSpentAtCurrentHole++;
+                currentHole.addIntervalTimeToHole();
+            }
+        }
+        else
+        {
+            intervalsSpentAtCurrentHole++;
+            currentHole.addIntervalTimeToHole();
+            nearestHole = newNearestHole;
+            intervalsSpentAtNearestHole = 0;
+        }
+    }
+
+
+    private void storeLastHoleData(GolfHole lastHole, int IntervalsSpent)
+    {
+        //TODO: SAVED DATA TO SHARED PREFERENCES.
     }
 
 //**********[Location Update and server pinging Code]
+
+    //called from onCreate()
     protected void setupServerUplinkAndLocationUpdater(Bundle savedInstanceState)
     {
         pingingServer = false;
@@ -311,6 +439,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mGoogleApiClient.connect();
 
         locationScanInterval = 30;//in seconds
+        GolfHole.setIntervalLength(locationScanInterval * 1000);
 
         request = new LocationRequest();
         request.setInterval(locationScanInterval * 1000);//in mileseconds
@@ -488,6 +617,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
                     {
                         locationScanInterval = jsonResultFromServer.getInt("intervalRequest");
+                        GolfHole.setIntervalLength(locationScanInterval * 1000);
                         request.setInterval(locationScanInterval * 1000);
 
                         LocationSettingsRequest.Builder requestBuilder = new LocationSettingsRequest.Builder().addLocationRequest(request);
