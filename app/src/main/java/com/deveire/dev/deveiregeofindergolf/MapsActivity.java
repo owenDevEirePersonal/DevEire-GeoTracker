@@ -21,6 +21,7 @@ import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -63,6 +64,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private TextView mapText;
     private Button swingButton;
+    private Button statsButton;
+    private EditText latEditText;
+    private EditText longEditText;
+
+    private Location fakeUserLocation;
 
     private String nearestGolfCourse;
 
@@ -77,6 +83,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private boolean isPlayingAHole;
     private boolean hasTeedOff;
     private int strokeNumber;
+
+    private int timeSinceStartedLastShot; //in ms
     //TODO: look into using geoFences to detect slow players.
 
     private Location usersLastLocation;
@@ -124,6 +132,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         nearestGolfCourse = "";
 
         mapText = (TextView) findViewById(R.id.mapText);
+        latEditText = (EditText) findViewById(R.id.latEditText);
+        longEditText = (EditText) findViewById(R.id.longEditText);
 
         swingButton = (Button) findViewById(R.id.swingButton);
         swingButton.setOnClickListener(new View.OnClickListener()
@@ -131,7 +141,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             @Override
             public void onClick(View v)
             {
+                fakeUserLocation = new Location("fake");
+                fakeUserLocation.setLatitude(Double.parseDouble(latEditText.getText().toString()));
+                fakeUserLocation.setLongitude(Double.parseDouble(longEditText.getText().toString()));
+                onLocationChanged(fakeUserLocation);
+            }
+        });
 
+        statsButton = (Button) findViewById(R.id.statsButton);
+        statsButton.setOnClickListener(new View.OnClickListener()
+        {
+            @Override
+            public void onClick(View v)
+            {
+                startStatsActivity();
             }
         });
 
@@ -148,6 +171,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         userLocation.setLatitude(userLat);
         userLocation.setLongitude(userLong);
 
+
+        aSaveState = getSharedPreferences("GeoFinderGolf", Context.MODE_PRIVATE);
         getHoleData();//warning: method loads hardcoded placeholder data.
         getUserData();//warning: method loads hardcoded placeholder data.
 
@@ -177,6 +202,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         isPlayingAHole = false;
         currentHole = null;
 
+        timeSinceStartedLastShot = 0;
+
         setupServerUplinkAndLocationUpdater(savedInstanceState);
     }
 
@@ -190,7 +217,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     protected void onStop()
     {
-        SharedPreferences.Editor edit = aSaveState.edit();
+        /*SharedPreferences.Editor edit = aSaveState.edit();
         int indexOfSwings = 1;
         for (Location aswing : swings)
         {
@@ -201,7 +228,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             indexOfSwings++;
         }
         edit.commit();
-
+        */
         mGoogleApiClient.disconnect();
         super.onStop();
     }
@@ -219,6 +246,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap)
     {
         mMap = googleMap;
+        googleMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
 
         // Add a marker in Sydney and move the camera
         LatLng golfCourse = new LatLng(courseLat, courseLong);
@@ -239,12 +267,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 break;
         }
 
-        int indexOfSwings = 1;
+        /*int indexOfSwings = 1;
         for (Location aswing : swings)
         {
             mMap.addMarker(new MarkerOptions().position(new LatLng(aswing.getLatitude(), aswing.getLongitude())).title("Swing" + indexOfSwings));
             indexOfSwings++;
-        }
+        }*/
 
 
         for (GolfHole aHole : allHoles)
@@ -287,11 +315,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if(currentHole != null && isPlayingAHole)
         {
             updateUsersAction();
+            allHoles.get(currentHole.getHoleNumber() - 1).addIntervalTimeToHole();
+            timeSinceStartedLastShot += GolfHole.getIntervalLength();
         }
 
     }
 
 
+    //Detect when the user has change action between walking waiting and swinging
     private void updateUsersAction()
     {
         if(!hasTeedOff)
@@ -322,6 +353,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         if (isUserSwinging())
                         {
                             UsersCurrentAction = user_is_swinging;
+                            allHoles.get(currentHole.getHoleNumber() - 1).addToSwings(userLocation);//TODO:Ensure that allHoles is ordered correctly.
                             strokeNumber++;
                             Log.i("Action Update", "User action changed from walking to swinging");
                         }
@@ -345,6 +377,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     if ((users2ndLastLocation.distanceTo(users3rdLastLocation) < 10) && (usersLastLocation.distanceTo(users2ndLastLocation) >= 10) && (userLocation.distanceTo(usersLastLocation) >= 10))
                     {
                         UsersCurrentAction = user_is_walking;
+                        allHoles.get(currentHole.getHoleNumber() - 1).addSwingTime(timeSinceStartedLastShot);
+                        timeSinceStartedLastShot = 0;
                         Log.i("Action Update", "User action changed from swinging to walking");
                     }
                     break;
@@ -358,7 +392,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private boolean isUserSwinging()//or waiting
     {
-        if(userLocation.distanceTo(usersLastSwingLocation) <= (currentHole.getAverageShotDistances().get(strokeNumber) / 100) * 80)
+        if(strokeNumber > currentHole.getAverageShotDistances().size())
+        {
+            Log.i("Action Update", "USER HAS EXCEEDED THE NORMAL NUMBER OF SHOTS");
+            return false;
+        }
+        if(userLocation.distanceTo(usersLastSwingLocation) <= (currentHole.getAverageShotDistances().get(strokeNumber - 1) / 100) * 80)
         {
             return false;//user is waiting
         }
@@ -383,6 +422,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 usersLastSwingLocation = currentHole.getTeeLocation();
                 isPlayingAHole = true;
                 Log.i("Update Hole", "User has arrived at 1st hole, setting currentHole to hole 1");
+                strokeNumber = 1;
             }
         }
         else if(isPlayingAHole) //if user is playing a hole and they get to the green.
@@ -391,6 +431,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             {
                 isPlayingAHole = false;
                 hasTeedOff = false;
+
+                allHoles.get(currentHole.getHoleNumber() - 1).addSwingTime(timeSinceStartedLastShot);
+                timeSinceStartedLastShot = 0;
+
+
                 Log.i("Update Hole", "User has arrived at the green of hole " + currentHole.getHoleNumber());
             }
         }
@@ -400,6 +445,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             usersLastSwingLocation = currentHole.getTeeLocation();
             isPlayingAHole = true;
             Log.i("Update Hole", "User has arrived at the tee of hole " + currentHole.getHoleNumber());
+            strokeNumber = 1;
+            timeSinceStartedLastShot = 0;
         }
         /*if(nearestHole == newNearestHole)
         {
@@ -476,9 +523,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     {
         //TODO: retrieve stored user data from a database
         ArrayList<Integer> averageShots = new ArrayList<Integer>();
-        averageShots.add(20);
-        averageShots.add(25);
-        averageShots.add(30);
+        averageShots.add(20);//shot 1 goes 20
+        averageShots.add(25);//shot 2 goes 25
+        averageShots.add(30);//shot 3 goes 30 and reaches the green
         allHoles.get(0).setAverageShotDistances(averageShots);
         averageShots = new ArrayList<Integer>();
         averageShots.add(20);
@@ -502,7 +549,46 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         //TODO: SAVE DATA TO SHARED PREFERENCES.
     }
 
+    private void startStatsActivity()
+    {
+        Intent aIntent = new Intent(getApplicationContext(), StatsActivity.class);
+        String sendToData;
+        if(currentHole != null)
+        {
+            sendToData = "The User is currently at Hole " + currentHole.getHoleNumber() + " and is ";
+        }
+        else
+        {
+            sendToData = "The user is currently not playing and is ";
+        }
 
+        switch (UsersCurrentAction)
+        {
+            case user_is_swinging: sendToData += "taking a swing"; break;
+            case user_is_waiting: sendToData += "waiting around, probablly for another golfer"; break;
+            case user_is_walking: sendToData += "walking somewhere"; break;
+        }
+        sendToData += "\n\n";
+        for (GolfHole ahole:allHoles)
+        {
+            sendToData += "Hole" + ahole.getHoleNumber() + "  \n  Tee Location(" + ahole.getTeeLocation().getLatitude() + "," + ahole.getTeeLocation().getLongitude() + ")" + "\n  Green Location(" + ahole.getGreenLocation().getLatitude() + "," + ahole.getGreenLocation().getLongitude() + ")" + "\n";
+            int count = 1;
+            for (int a:ahole.getAverageShotDistances())
+            {
+                sendToData += "\t Stroke " + count + " Average Distance: " + a + "\n";
+                count++;
+            }
+            sendToData += "\n";
+            int count2 = 1;
+            for (Location b:ahole.getSwings())
+            {
+                sendToData += "\t Swing " + count2 + ": (" + b.getLatitude() + ", " + b.getLongitude() + ")" + "\n";
+                count2++;
+            }
+        }
+        aIntent.putExtra("data", sendToData);
+        startActivity(aIntent);
+    }
 
 //**********[Location Update and server pinging Code]
 
@@ -627,7 +713,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onLocationChanged(Location location)
     {
-        locationReceivedFromLocationUpdates = location;
+        //locationReceivedFromLocationUpdates = location;
+        locationReceivedFromLocationUpdates = fakeUserLocation;
+
+
         if(locationReceivedFromLocationUpdates != null)
         {
             serverURL = "http://geo.dev.deveire.com/store/location?id=" + Settings.Secure.ANDROID_ID.toString() + "&lat=" + locationReceivedFromLocationUpdates.getLatitude() + "&lon=" + locationReceivedFromLocationUpdates.getLongitude();
@@ -635,6 +724,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             Log.i("Network Update", "Attempting to start download from onLocationChanged." + serverURL);
             aNetworkFragment = NetworkFragment.getInstance(getSupportFragmentManager(), serverURL);
 
+            GolfHole.setIntervalLength(locationScanInterval);
             updateMap();
 
             //startDownload();
@@ -712,12 +802,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, request, this);
                         Log.i("Location Update", "Interval Changed, locationRequest changed.");
                     }
-                    mapText.setText(locationScanInterval);
+                    mapText.setText("" + locationScanInterval);
                 }
             }
             else
             {
-                mapText.setText("Error: Network unavaiable");
+                mapText.setText("Error: network unavaiable");
             }
 
         }
