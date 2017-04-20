@@ -42,6 +42,7 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import org.json.JSONException;
@@ -63,8 +64,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private float courseRadius; //in meters
 
     private TextView mapText;
+    private TextView currentLayerText;
     private Button swingButton;
     private Button statsButton;
+    private Button nextLayerButton;
+    private Button previousLayerButton;
     private EditText latEditText;
     private EditText longEditText;
 
@@ -101,7 +105,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private final int user_is_walking_or_waiting = 4;
     private final int user_is_waiting_or_swinging = 5;
 
+    private int currentMapLayer;
+    private final int map_layer_all = 1;
+    private final int map_layer_holes = 2;
+    private final int map_layer_swings = 3;
+    private final int map_layer_user = 4;
+    private final int map_layer_current_hole_and_swings = 5;
 
+    private ArrayList<MarkerOptions> holesMarkers;
+    private ArrayList<MarkerOptions> teeMarkers;
 
 
     //[Network and periodic location update, Variables]
@@ -204,6 +216,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         timeSinceStartedLastShot = 0;
 
+        holesMarkers = new ArrayList<MarkerOptions>();
+        teeMarkers = new ArrayList<MarkerOptions>();
+
+        currentMapLayer = map_layer_all;
+        currentLayerText = (TextView) findViewById(R.id.currentLayerText);
+        nextLayerButton = (Button) findViewById(R.id.nextLayerButton);
+        nextLayerButton.setOnClickListener(new onClickNextLayerButton());
+        previousLayerButton = (Button) findViewById(R.id.previousLayerButton);
+        previousLayerButton.setOnClickListener(new onClickPreviousLayerButton());
+
         setupServerUplinkAndLocationUpdater(savedInstanceState);
     }
 
@@ -250,7 +272,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         // Add a marker in Sydney and move the camera
         LatLng golfCourse = new LatLng(courseLat, courseLong);
-        mMap.addMarker(new MarkerOptions().position(golfCourse).title("Jim Bob Memorial Golf Course"));
+        mMap.addMarker(new MarkerOptions().position(golfCourse).title("Jim Bob Memorial Golf Course").visible(false));
 
         mMap.addMarker(new MarkerOptions().position(new LatLng(userLat, userLong)).title("User Position"));
         mMap.addCircle(new CircleOptions().center(golfCourse).radius(courseRadius));
@@ -277,8 +299,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         for (GolfHole aHole : allHoles)
         {
-            mMap.addMarker(new MarkerOptions().position(new LatLng(aHole.getGreenLocation().getLatitude(), aHole.getGreenLocation().getLongitude())).title("Hole " + aHole.getHoleNumber()));
-            mMap.addMarker(new MarkerOptions().position(new LatLng(aHole.getTeeLocation().getLatitude(), aHole.getTeeLocation().getLongitude())).title("Tee " + aHole.getHoleNumber()));
+            holesMarkers.add(new MarkerOptions().position(new LatLng(aHole.getGreenLocation().getLatitude(), aHole.getGreenLocation().getLongitude())).title("Hole " + aHole.getHoleNumber()));
+            teeMarkers.add(new MarkerOptions().position(new LatLng(aHole.getTeeLocation().getLatitude(), aHole.getTeeLocation().getLongitude())).title("Tee " + aHole.getHoleNumber()));
         }
 
     }
@@ -305,7 +327,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private void updateMap()
     {
-
         users3rdLastLocation = users2ndLastLocation;
         users2ndLastLocation = usersLastLocation;
         usersLastLocation = userLocation;
@@ -588,6 +609,170 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
         aIntent.putExtra("data", sendToData);
         startActivity(aIntent);
+    }
+
+    public class onClickNextLayerButton implements View.OnClickListener
+    {
+        @Override
+        public void onClick(View v)
+        {
+            currentMapLayer++;
+            if(currentMapLayer > map_layer_current_hole_and_swings)
+            {
+                currentMapLayer = map_layer_all;
+            }
+
+            mMap.clear();
+            switch (currentMapLayer)
+            {
+                case map_layer_all:
+                    for (MarkerOptions a: holesMarkers)
+                    {
+                        mMap.addMarker(a);
+                    }
+                    for (MarkerOptions b: teeMarkers)
+                    {
+                        mMap.addMarker(b);
+                    }
+                    for(GolfHole a: allHoles)
+                    {
+                        int i = 1;
+                        for (Location b: a.getSwings())
+                        {
+                            mMap.addMarker(new MarkerOptions().position(new LatLng(b.getLatitude(), b.getLongitude())).title("Hole " + a.getHoleNumber() + " Swing " + i));
+                            i++;
+                        }
+                    }
+                    mMap.addMarker(new MarkerOptions().position(new LatLng(userLocation.getLatitude(), userLocation.getLongitude())).title("User"));
+                    currentLayerText.setText("All");
+                    break;
+
+                case map_layer_holes:
+                    for (MarkerOptions a: holesMarkers)
+                    {
+                        mMap.addMarker(a);
+                    }
+                    for (MarkerOptions b: teeMarkers)
+                    {
+                        mMap.addMarker(b);
+                    }
+                    currentLayerText.setText("Holes");
+                    break;
+
+                case map_layer_swings:
+                    for(GolfHole a: allHoles)
+                    {
+                        int i = 1;
+                        for (Location b: a.getSwings())
+                        {
+                            mMap.addMarker(new MarkerOptions().position(new LatLng(b.getLatitude(), b.getLongitude())).title("Hole " + a.getHoleNumber() + " Swing " + i));
+                            i++;
+                        }
+                    }
+                    currentLayerText.setText("Swings");
+                    break;
+
+                case map_layer_user:
+                    mMap.addMarker(new MarkerOptions().position(new LatLng(userLocation.getLatitude(), userLocation.getLongitude())).title("User"));
+                    currentLayerText.setText("User");
+                    break;
+
+                case map_layer_current_hole_and_swings:
+                    int i = 1;
+                    if(currentHole != null)
+                    {
+                        mMap.addMarker(new MarkerOptions().position(new LatLng(currentHole.getTeeLocation().getLatitude(), currentHole.getTeeLocation().getLongitude())).title("Tee"));
+                        mMap.addMarker(new MarkerOptions().position(new LatLng(currentHole.getGreenLocation().getLatitude(), currentHole.getGreenLocation().getLongitude())).title("Hole " + currentHole.getHoleNumber()));
+                        for (Location b : currentHole.getSwings())
+                        {
+                            mMap.addMarker(new MarkerOptions().position(new LatLng(b.getLatitude(), b.getLongitude())).title("Swing " + i));
+                            i++;
+                        }
+                    }
+                    currentLayerText.setText("Current Hole and Swings");
+                    break;
+            }
+
+        }
+    }
+
+    public class onClickPreviousLayerButton implements View.OnClickListener
+    {
+        @Override
+        public void onClick(View v)
+        {
+            currentMapLayer--;
+            if(currentMapLayer < map_layer_all)
+            {
+                currentMapLayer = map_layer_current_hole_and_swings;
+            }
+
+            mMap.clear();
+            switch (currentMapLayer)
+            {
+                case map_layer_all:
+                    for (MarkerOptions a: holesMarkers)
+                    {
+                        mMap.addMarker(a);
+                    }
+                    for (MarkerOptions b: teeMarkers)
+                    {
+                        mMap.addMarker(b);
+                    }
+                    for(GolfHole a: allHoles)
+                    {
+                        int i = 1;
+                        for (Location b: a.getSwings())
+                        {
+                            mMap.addMarker(new MarkerOptions().position(new LatLng(b.getLatitude(), b.getLongitude())).title("Hole " + a.getHoleNumber() + " Swing " + i));
+                            i++;
+                        }
+                    }
+                    mMap.addMarker(new MarkerOptions().position(new LatLng(userLocation.getLatitude(), userLocation.getLongitude())).title("User"));
+                    break;
+
+                case map_layer_holes:
+                    for (MarkerOptions a: holesMarkers)
+                    {
+                        mMap.addMarker(a);
+                    }
+                    for (MarkerOptions b: teeMarkers)
+                    {
+                        mMap.addMarker(b);
+                    }
+                    break;
+
+                case map_layer_swings:
+                    for(GolfHole a: allHoles)
+                    {
+                        int i = 1;
+                        for (Location b: a.getSwings())
+                        {
+                            mMap.addMarker(new MarkerOptions().position(new LatLng(b.getLatitude(), b.getLongitude())).title("Hole " + a.getHoleNumber() + " Swing " + i));
+                            i++;
+                        }
+                    }
+                    break;
+
+                case map_layer_user:
+                    mMap.addMarker(new MarkerOptions().position(new LatLng(userLocation.getLatitude(), userLocation.getLongitude())).title("User"));
+                    break;
+
+                case map_layer_current_hole_and_swings:
+                    int i = 1;
+                    if(currentHole != null)
+                    {
+                        mMap.addMarker(new MarkerOptions().position(new LatLng(currentHole.getTeeLocation().getLatitude(), currentHole.getTeeLocation().getLongitude())).title("Tee"));
+                        mMap.addMarker(new MarkerOptions().position(new LatLng(currentHole.getGreenLocation().getLatitude(), currentHole.getGreenLocation().getLongitude())).title("Hole " + currentHole.getHoleNumber()));
+                        for (Location b : currentHole.getSwings())
+                        {
+                            mMap.addMarker(new MarkerOptions().position(new LatLng(b.getLatitude(), b.getLongitude())).title("Swing " + i));
+                            i++;
+                        }
+                    }
+                    break;
+            }
+        }
     }
 
 //**********[Location Update and server pinging Code]

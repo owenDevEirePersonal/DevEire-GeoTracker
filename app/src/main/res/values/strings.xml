@@ -4,4 +4,7 @@
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="title_activity_maps">Golf Course Map</string>
+
+    <string name="left_arrow"> &lt;&lt; </string>
+    <string name="right_arrow"> &gt;&gt; </string>
 </resources>
