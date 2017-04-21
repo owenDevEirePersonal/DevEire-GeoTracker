@@ -166,7 +166,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         locationScanInterval = 30;//in seconds
 
 //*********************************************PERIODIC NETWORK CONNECTION DISABLED*********************************************************************
-        /*request = new LocationRequest();
+        request = new LocationRequest();
         request.setInterval(locationScanInterval * 1000);//in mileseconds
         request.setFastestInterval(5000);//caps how fast the locations are recieved, as other apps could be triggering updates faster than our app.
         request.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY); //accurate to 100 meters.
@@ -210,7 +210,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                         break;
                 }
             }
-        });*/
+        });
 
         geoCoderServiceResultReciever = new AddressResultReceiver(new Handler());
 
