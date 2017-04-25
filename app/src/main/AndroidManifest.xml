@@ -53,6 +53,12 @@
         </activity>
         <activity android:name=".StatsActivity">
         </activity>
+
+        <service
+            android:name=".TrackingService"
+            android:enabled="true"
+            android:exported="true">
+        </service>
     </application>
 
 </manifest>
