@@ -55,6 +55,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private GoogleMap mMap;
 
+    private Boolean isPlayingAGame;
+
     private float courseLat;
     private float courseLong;
     private Location courseLocation;
@@ -145,6 +147,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
+        isPlayingAGame = false;
+
         nearestGolfCourse = "";
 
         mapText = (TextView) findViewById(R.id.mapText);
@@ -218,6 +222,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         aSaveState = getSharedPreferences("GeoFinderGolf", Context.MODE_PRIVATE);
 
+        isPlayingAGame = aSaveState.getBoolean("isPlayingAGame", false);
         getHoleData();//warning: method loads hardcoded placeholder data.
         getUserData();//warning: method loads hardcoded placeholder data.
 
@@ -245,7 +250,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         UsersCurrentAction = user_is_walking; //intialise as walking as the action will only begin to come into play once the user is walking away from the tee.
         UsersPreviousAction = user_is_walking;
         isPlayingAHole = false;
-        currentHole = null;
+        int loadedCurrentHoleNumber = aSaveState.getInt("currentHoleNumber", 0);
+        if(loadedCurrentHoleNumber != 0)
+        {
+            currentHole = allHoles.get(loadedCurrentHoleNumber - 1);
+        }
 
         timeSinceStartedLastShot = 0;
 
@@ -286,13 +295,18 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         */
         SharedPreferences.Editor edit = aSaveState.edit();
         //edit.clear();
+        if(currentHole != null)
+        {
+            edit.putInt("currentHoleNumber", currentHole.getHoleNumber());
+        }
+        edit.putBoolean("isPlayingAGame", isPlayingAGame);
         int i = 1;
         for (GolfHole ahole: allHoles)
         {
             Gson gson = new Gson();
             String json = gson.toJson(ahole);
             edit.putString("Hole" + ahole.getHoleNumber(), json);
-            Log.i("SAVING", "Saving Hole " + ahole.getHoleNumber() + "to memory");
+            Log.i("SAVING", "Saving Hole " + ahole.getHoleNumber() + " to memory");
         }
         edit.commit();
 
@@ -484,7 +498,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         Log.i("Update", "updatingWhatholeUserIsAt");
         GolfHole newNearestHole = findNearestHole(userLocation, allHoles);
 
-        if(currentHole == null)//if the user haven't started playing yet
+        if(!isPlayingAGame)//if the user haven't started playing yet
         {
             if(userLocation.distanceTo(allHoles.get(0).getTeeLocation()) <= 5 && usersLastLocation.distanceTo(newNearestHole.getTeeLocation()) <= 5)//and they get within 5 meters of the first hole's tee
             {
@@ -493,6 +507,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 isPlayingAHole = true;
                 Log.i("Update Hole", "User has arrived at 1st hole, setting currentHole to hole 1");
                 strokeNumber = 1;
+                isPlayingAGame = true;
             }
         }
         else if(isPlayingAHole) //if user is playing a hole and they get to the green.
@@ -505,9 +520,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 allHoles.get(currentHole.getHoleNumber() - 1).addSwingTime(timeSinceStartedLastShot);
                 timeSinceStartedLastShot = 0;
 
-                storeLastHoleData(allHoles.get(currentHole.getHoleNumber() - 1));
+                storeLastHoleData(allHoles.get(currentHole.getHoleNumber() - 1));//store the data of the previous hole given that this hole has been complete(i.e. user has reached green)
 
                 Log.i("Update Hole", "User has arrived at the green of hole " + currentHole.getHoleNumber());
+
+                if(currentHole.getHoleNumber() == 18)
+                {
+                    Log.i("Update Hole", "User has finished 18 hole, ending game");
+                    isPlayingAGame = false;
+                    currentHole = null;
+                }
             }
         }
         else if(userLocation.distanceTo(newNearestHole.getTeeLocation()) <= 5 && usersLastLocation.distanceTo(newNearestHole.getTeeLocation()) <= 5) //if the user is not playing a hole(is between holes) and comes within 5 meters of a hole's tee then set them to playing that hole.
@@ -663,9 +685,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             else
             {
                 GolfHole loadedHole = gson.fromJson(json, GolfHole.class);
-                loadedHole.setSwings(new ArrayList<Location>());//clears the swings that were previously stored to memory.
+                if(aSaveState.getBoolean("IsPlayingAGame", false))
+                {
+                    currentHole = allHoles.get(aSaveState.getInt("currentHoleNumber", 0) + 1);
+                }
+                else
+                {
+                    loadedHole.setSwings(new ArrayList<Location>());//clears the swings that were previously stored to memory.
+                }
                 allHoles.add(loadedHole);
-                Log.i("LOADING", "Loading Hole " + gson.fromJson(json, GolfHole.class).getHoleNumber() + " from memory");
+                Log.i("LOADING", "Loading Hole " + loadedHole.getHoleNumber() + " from memory");
             }
         }
 
@@ -732,7 +761,18 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         int i = 1;
         for (int aswingDistance: lastHole.getAverageShotDistances())
         {
-            edit.putInt("Hole" + lastHole.getHoleNumber() + "Swing" + i, aswingDistance);
+            if(i == 1)//for the first hole, get teh distance between this and the
+            {
+                edit.putInt("Hole" + lastHole.getHoleNumber() + "Swing" + 1, (int) (aswingDistance + lastHole.getSwings().get(0).distanceTo(lastHole.getTeeLocation())) / 2);
+            }
+            else if(i == lastHole.getSwings().size())//for the last shot, get the distance between it and the hole, then subtract the greens size
+            {
+                edit.putInt("Hole" + lastHole.getHoleNumber() + "Swing" + i, (int) (aswingDistance + (lastHole.getSwings().get(i - 1).distanceTo(lastHole.getGreenLocation()) - lastHole.getGreenRadius())) / 2);
+            }
+            else//for every other hole, get the distance between Swing i and the previous swing.
+            {
+                edit.putInt("Hole" + lastHole.getHoleNumber() + "Swing" + i, (int) (aswingDistance + lastHole.getSwings().get(i - 1).distanceTo(lastHole.getSwings().get(i - 2))) / 2);
+            }
             i++;
         }
         edit.commit();

@@ -19,7 +19,7 @@ public class GolfHole
     private int greenRadius;//radius of the hole's green, in meters.
     private String golfCourseHoleIsPartOf; //the name of the golf course that the hole is part of.
     private ArrayList<Integer> averageShotDistances; //the adverage distance of each shot, with index 0 being the distance made from tee off.
-    private ArrayList<Location> swings;
+    private ArrayList<Location> swings;//the location of each swing after teeoff
     private ArrayList<Integer> swingTimes;//the times, in milsecs, between starting to swing a shot and starting to swing the next.
 
 
